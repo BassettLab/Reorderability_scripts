@@ -9,6 +9,7 @@ using Plots
 using Measures
 using StatsPlots
 using RCall
+using PyCall
 using Statistics
 using StatsBase
 using HypothesisTests
@@ -282,12 +283,12 @@ end
 function computeBNDistances_local(barcode_array)
 
     nReps = 2416
-    nGraphs = 10
+    nGraphs = 20
     maxDim = 3
     nNodes = 70
 
-    graphOriginals = collect(1:2416:24160)
-    distanceBN_array = zeros(24160,3)
+    graphOriginals = collect(1:2416:48320)
+    distanceBN_array = zeros(48320,3)
 
     for nG in graphOriginals
         diagO = makeDiagramFromBarcode(barcode_array,nG,maxDim)
@@ -350,4 +351,91 @@ end
 function strictLTvector3D(x)
     xVec = [x[i,j,d] for d in 1:size(x)[3] for j in 1:size(x)[2]-1 for i in j+1:size(x)[1]]
     return xVec
+end
+
+
+function computeBettiDistances_sampled(bettiCurve,nGraphs,nSamples)
+    bettiCurveDistances = zeros(nSamples,3)
+    maxDim = 3
+    for i0 in collect(1:nSamples)
+
+      # Pick two Betti Curves
+      p = sample(collect(1:nGraphs),2,replace = false)
+
+      bcurve1 = bettiCurve[p[1],:,:]
+      bcurve2 = bettiCurve[p[2],:,:]
+
+      for di in collect(1:maxDim)
+
+        bcurvediff = abs.(bcurve1[:,di].- bcurve2[:,di])
+        maxDiff = maximum(bcurvediff)
+
+        bettiCurveDistances[i0,di] = maxDiff
+
+      end
+    end
+
+    return bettiCurveDistances
+end
+
+
+function computeBettiDistances_topologysampled(bettiCurve,nGraphs,nSamples,nReps,maxDim)
+
+    bettiCurveDistances_globSampled = zeros(10000,maxDim)
+    runs = collect(1:100)
+
+    for nG in collect(1:nGraphs)
+
+      a = (nG-1)*nReps + 1
+
+    for runi in runs
+        p = sample(collect(a:(a + 100)), 2, replace = false)
+
+        bcurve1 = bettiCurve[p[1],:,:]
+        bcurve2 = bettiCurve[p[2],:,:]
+
+        for di in collect(1:maxDim)
+
+            bcurvediff = abs.(bcurve1[:,Int(di)].- bcurve2[:,di])
+
+            maxDiff = maximum(bcurvediff)
+            iter1 = (nG-1)*100 + runi
+            bettiCurveDistances_globSampled[Int(iter1),di] = maxDiff
+        end
+    end
+
+    end
+    return bettiCurveDistances_globSampled
+end
+
+
+
+function computeBettiDistances_glob(bettiCurve_orig,bettiCurve_r,nGraphs,maxDim,nReps)
+
+  nGraphs = Int(nGraphs)
+  nReps = Int(nReps)
+  maxDim = Int(maxDim)
+
+  bettiCurveDistances_glob = zeros(10000,maxDim)
+  for i0 in collect(1:nGraphs)
+
+    bcurve1 = bettiCurve_orig[i0,:,:]
+
+    for r0 in collect(1:(nReps-1))
+
+        repG = (i0-1)*nGraphs + r0
+        bcurve2 = bettiCurve_r[Int(repG),:,:]
+
+        for di in collect(1:maxDim)
+
+            bcurvediff = abs.(bcurve1[:,Int(di)].- bcurve2[:,di])
+            maxDiff = maximum(bcurvediff)
+
+            bettiCurveDistances_glob[Int(repG),di] = maxDiff
+        end
+    end
+
+  end
+
+  return bettiCurveDistances_glob
 end
